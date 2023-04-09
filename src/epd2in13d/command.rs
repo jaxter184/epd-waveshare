@@ -57,3 +57,10 @@ pub(crate) enum Command {
 	LvdVoltageSelect = 0xe4,
 	ForceTemperature = 0xe5,
 }
+
+impl traits::Command for Command {
+    /// Returns the address of the command
+    fn address(self) -> u8 {
+        self as u8
+    }
+}

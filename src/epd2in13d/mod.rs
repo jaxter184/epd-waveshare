@@ -19,11 +19,7 @@ use crate::interface::DisplayInterface;
 use crate::traits::{InternalWiAdditions, RefreshLut, WaveshareDisplay};
 
 pub(crate) mod command;
-use self::command::{
-    BorderWaveForm, BorderWaveFormFixLevel, BorderWaveFormGs, BorderWaveFormVbd, Command,
-    DataEntryModeDir, DataEntryModeIncr, DeepSleepMode, DisplayUpdateControl2, DriverOutput,
-    GateDrivingVoltage, I32Ext, SourceDrivingVoltage, Vcom,
-};
+use command::Command;
 
 pub(crate) mod constants;
 use self::constants::{
@@ -146,7 +142,6 @@ where
     }
 
     fn sleep(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
-        self.interface.cmd_with_data(spi, Command::MysteryTODO, &buf)?;
         /*
         self.wait_until_idle(spi, delay)?;
 
@@ -173,6 +168,7 @@ where
         delay: &mut DELAY,
     ) -> Result<(), SPI::Error> {
         assert!(buffer.len() == buffer_len(WIDTH as usize, HEIGHT as usize));
+	    todo!();
 
         /*
         self.set_ram_area(spi, 0, 0, WIDTH - 1, HEIGHT - 1)?;
@@ -235,13 +231,7 @@ where
     /// Never use directly this function when using partial refresh, or also
     /// keep the base buffer in syncd using `set_partial_base_buffer` function.
     fn display_frame(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
-        const BYTE_WIDTH: usize = if WIDTH % 8 == 0 { WIDTH / 8 } else { WIDTH / 8 + 1 } as usize;
-        let buf = [0; BYTE_WIDTH * HEIGHT as usize];
-        self.interface.cmd_with_data(spi, Command::DisplayStartTransmission1, &buf)?;
-        let buf = [0xff; BYTE_WIDTH * HEIGHT as usize];
-        self.interface.cmd_with_data(spi, Command::DisplayStartTransmission2, &buf)?;
-        self.set_lut(spi, delay, None)?;
-        self.turn_on_display(spi, delay)?;
+	    todo!();
         /*
         if self.refresh == RefreshLut::Full {
             self.set_display_update_control_2(
@@ -270,24 +260,30 @@ where
         delay: &mut DELAY,
     ) -> Result<(), SPI::Error> {
         /*
-        self.update_frame(spi, buffer, delay)?;
-        self.display_frame(spi, delay)?;
-
-        if self.refresh == RefreshLut::Quick {
-            self.set_partial_base_buffer(spi, delay, buffer)?;
+        let mut buffer = [0_u8; BUF_LEN as usize];
+        for ea in 0..BUF_LEN {
+	        buffer[ea as usize] = ea as u8;
         }
         */
+
+        let color = self.background_color.get_byte_value();
+        const BUF_LEN: u32 = buffer_len(WIDTH as usize, HEIGHT as usize) as u32;
+        self.interface.cmd(spi, Command::DisplayStartTransmission1)?;
+        self.interface.data_x_times(spi, color, BUF_LEN)?;
+        //self.interface.cmd_with_data(spi, Command::DisplayStartTransmission1, &buffer)?;
+        self.interface.cmd_with_data(spi, Command::DisplayStartTransmission2, &buffer)?;
+        self.set_lut(spi, delay, None)?;
+        self.turn_on_display(spi, delay)?;
         Ok(())
     }
 
     fn clear_frame(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
         let color = self.background_color.get_byte_value();
-
-        const BYTE_WIDTH: usize = if WIDTH % 8 == 0 { WIDTH / 8 } else { WIDTH / 8 + 1 } as usize;
+        const BUF_LEN: u32 = buffer_len(WIDTH as usize, HEIGHT as usize) as u32;
         self.interface.cmd(spi, Command::DisplayStartTransmission1)?;
-        self.interface.data_x_times(spi, color, buffer_len(WIDTH as usize, HEIGHT as usize))?;
+        self.interface.data_x_times(spi, color, BUF_LEN)?;
         self.interface.cmd(spi, Command::DisplayStartTransmission2)?;
-        self.interface.data_x_times(spi, !color, buffer_len(WIDTH as usize, HEIGHT as usize))?;
+        self.interface.data_x_times(spi, !color, BUF_LEN)?;
         self.set_lut(spi, delay, None)?;
         self.turn_on_display(spi, delay)?;
         /*
