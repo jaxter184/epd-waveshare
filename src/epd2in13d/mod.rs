@@ -165,10 +165,18 @@ where
         &mut self,
         spi: &mut SPI,
         buffer: &[u8],
-        delay: &mut DELAY,
+        _delay: &mut DELAY,
     ) -> Result<(), SPI::Error> {
         assert!(buffer.len() == buffer_len(WIDTH as usize, HEIGHT as usize));
-	    todo!();
+
+        self.refresh = RefreshLut::Full;
+
+        let color = self.background_color.get_byte_value();
+        const BUF_LEN: u32 = buffer_len(WIDTH as usize, HEIGHT as usize) as u32;
+        self.interface.cmd(spi, Command::DisplayStartTransmission1)?;
+        self.interface.data_x_times(spi, color, BUF_LEN)?;
+        //self.interface.cmd_with_data(spi, Command::DisplayStartTransmission1, &buffer)?;
+        self.interface.cmd_with_data(spi, Command::DisplayStartTransmission2, &buffer)?;
 
         /*
         self.set_ram_area(spi, 0, 0, WIDTH - 1, HEIGHT - 1)?;
@@ -193,7 +201,7 @@ where
     fn update_partial_frame(
         &mut self,
         spi: &mut SPI,
-        delay: &mut DELAY,
+        _delay: &mut DELAY,
         buffer: &[u8],
         x: u32,
         y: u32,
@@ -201,29 +209,26 @@ where
         height: u32,
     ) -> Result<(), SPI::Error> {
         assert!((width * height / 8) as usize == buffer.len());
+        assert!(x % 8 == 0);
+        assert!(width % 8 == 0);
 
-        // This should not be used when doing partial refresh. The RAM_RED must
-        // be updated with the last buffer having been displayed. Doing partial
-        // update directly in RAM makes this update impossible (we can't read
-        // RAM content). Using this function will most probably make the actual
-        // display incorrect as the controler will compare with something
-        // incorrect.
-        assert!(self.refresh == RefreshLut::Full);
+        self.refresh = RefreshLut::Quick;
 
-        /*
-        self.set_ram_area(spi, x, y, x + width, y + height)?;
-        self.set_ram_address_counters(spi, delay, x, y)?;
-
-        self.cmd_with_data(spi, Command::WriteRam, buffer)?;
-
-        if self.refresh == RefreshLut::Full {
-            // Always keep the base buffer equals to current if not doing partial refresh.
-            self.set_ram_area(spi, x, y, x + width, y + height)?;
-            self.set_ram_address_counters(spi, delay, x, y)?;
-
-            self.cmd_with_data(spi, Command::WriteRamRed, buffer)?;
+        self.interface.cmd(spi, Command::PartialIn)?;
+        self.interface.cmd(spi, Command::PartialWindow)?;
+        self.interface.data(spi, &[x as u8])?;
+        self.interface.data(spi, &[(x + width - 1) as u8])?;
+        self.interface.data(spi, &[(y / 256) as u8])?;
+        self.interface.data(spi, &[(y % 256) as u8])?;
+        self.interface.data(spi, &[((y + height) / 256) as u8])?;
+        self.interface.data(spi, &[((y + height) % 256 - 1) as u8])?;
+        self.interface.data(spi, &[0x28])?;
+        self.interface.cmd(spi, Command::DisplayStartTransmission1)?;
+        for ea_byte in buffer {
+	        self.interface.data(spi, &[!ea_byte])?;
         }
-        */
+        self.interface.cmd(spi, Command::DisplayStartTransmission2)?;
+        self.interface.data(spi, &buffer)?;
 
         Ok(())
     }
@@ -231,7 +236,8 @@ where
     /// Never use directly this function when using partial refresh, or also
     /// keep the base buffer in syncd using `set_partial_base_buffer` function.
     fn display_frame(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
-	    todo!();
+        self.set_lut(spi, delay, Some(self.refresh))?;
+        self.turn_on_display(spi, delay)?;
         /*
         if self.refresh == RefreshLut::Full {
             self.set_display_update_control_2(
@@ -259,21 +265,8 @@ where
         buffer: &[u8],
         delay: &mut DELAY,
     ) -> Result<(), SPI::Error> {
-        /*
-        let mut buffer = [0_u8; BUF_LEN as usize];
-        for ea in 0..BUF_LEN {
-	        buffer[ea as usize] = ea as u8;
-        }
-        */
-
-        let color = self.background_color.get_byte_value();
-        const BUF_LEN: u32 = buffer_len(WIDTH as usize, HEIGHT as usize) as u32;
-        self.interface.cmd(spi, Command::DisplayStartTransmission1)?;
-        self.interface.data_x_times(spi, color, BUF_LEN)?;
-        //self.interface.cmd_with_data(spi, Command::DisplayStartTransmission1, &buffer)?;
-        self.interface.cmd_with_data(spi, Command::DisplayStartTransmission2, &buffer)?;
-        self.set_lut(spi, delay, None)?;
-        self.turn_on_display(spi, delay)?;
+        self.update_frame(spi, buffer, delay)?;
+        self.display_frame(spi, delay)?;
         Ok(())
     }
 
@@ -354,7 +347,7 @@ where
     }
 
     fn wait_until_idle(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
-        self.interface.wait_until_idle_with_cmd(spi, delay, IS_BUSY_LOW, Command::GetStatus);
+        self.interface.wait_until_idle_with_cmd(spi, delay, IS_BUSY_LOW, Command::GetStatus)?;
         Ok(())
     }
 }
