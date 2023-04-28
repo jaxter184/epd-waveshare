@@ -2,9 +2,6 @@
 
 use crate::traits;
 
-extern crate bit_field;
-use bit_field::BitField;
-
 /// Epd2in13d
 ///
 /// For more infos about the addresses and what they are doing look into the pdfs

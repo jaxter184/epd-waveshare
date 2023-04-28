@@ -141,7 +141,7 @@ where
         self.init(spi, delay)
     }
 
-    fn sleep(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
+    fn sleep(&mut self, _spi: &mut SPI, _delay: &mut DELAY) -> Result<(), SPI::Error> {
         /*
         self.wait_until_idle(spi, delay)?;
 
@@ -175,23 +175,7 @@ where
         const BUF_LEN: u32 = buffer_len(WIDTH as usize, HEIGHT as usize) as u32;
         self.interface.cmd(spi, Command::DisplayStartTransmission1)?;
         self.interface.data_x_times(spi, color, BUF_LEN)?;
-        //self.interface.cmd_with_data(spi, Command::DisplayStartTransmission1, &buffer)?;
         self.interface.cmd_with_data(spi, Command::DisplayStartTransmission2, &buffer)?;
-
-        /*
-        self.set_ram_area(spi, 0, 0, WIDTH - 1, HEIGHT - 1)?;
-        self.set_ram_address_counters(spi, delay, 0, 0)?;
-
-        self.cmd_with_data(spi, Command::WriteRam, buffer)?;
-
-        if self.refresh == RefreshLut::Full {
-            // Always keep the base buffer equal to current if not doing partial refresh.
-            self.set_ram_area(spi, 0, 0, WIDTH - 1, HEIGHT - 1)?;
-            self.set_ram_address_counters(spi, delay, 0, 0)?;
-
-            self.cmd_with_data(spi, Command::WriteRamRed, buffer)?;
-        }
-        */
         Ok(())
     }
 
@@ -225,7 +209,7 @@ where
         self.interface.data(spi, &[0x28])?;
         self.interface.cmd(spi, Command::DisplayStartTransmission1)?;
         for ea_byte in buffer {
-	        self.interface.data(spi, &[!ea_byte])?;
+            self.interface.data(spi, &[!ea_byte])?;
         }
         self.interface.cmd(spi, Command::DisplayStartTransmission2)?;
         self.interface.data(spi, &buffer)?;
@@ -233,29 +217,9 @@ where
         Ok(())
     }
 
-    /// Never use directly this function when using partial refresh, or also
-    /// keep the base buffer in syncd using `set_partial_base_buffer` function.
     fn display_frame(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
         self.set_lut(spi, delay, Some(self.refresh))?;
         self.turn_on_display(spi, delay)?;
-        /*
-        if self.refresh == RefreshLut::Full {
-            self.set_display_update_control_2(
-                spi,
-                DisplayUpdateControl2::new()
-                    .enable_clock()
-                    .enable_analog()
-                    .display()
-                    .disable_analog()
-                    .disable_clock(),
-            )?;
-        } else {
-            self.set_display_update_control_2(spi, DisplayUpdateControl2::new().display())?;
-        }
-        self.command(spi, Command::MasterActivation)?;
-        self.wait_until_idle(spi, delay)?;
-        */
-
         Ok(())
     }
 
@@ -279,31 +243,6 @@ where
         self.interface.data_x_times(spi, !color, BUF_LEN)?;
         self.set_lut(spi, delay, None)?;
         self.turn_on_display(spi, delay)?;
-        /*
-
-        self.set_ram_area(spi, 0, 0, WIDTH - 1, HEIGHT - 1)?;
-        self.set_ram_address_counters(spi, delay, 0, 0)?;
-
-        self.command(spi, Command::WriteRam)?;
-        self.interface.data_x_times(
-            spi,
-            color,
-            buffer_len(WIDTH as usize, HEIGHT as usize) as u32,
-        )?;
-
-        // Always keep the base buffer equals to current if not doing partial refresh.
-        if self.refresh == RefreshLut::Full {
-            self.set_ram_area(spi, 0, 0, WIDTH - 1, HEIGHT - 1)?;
-            self.set_ram_address_counters(spi, delay, 0, 0)?;
-
-            self.command(spi, Command::WriteRamRed)?;
-            self.interface.data_x_times(
-                spi,
-                color,
-                buffer_len(WIDTH as usize, HEIGHT as usize) as u32,
-            )?;
-        }
-        */
         Ok(())
     }
 
